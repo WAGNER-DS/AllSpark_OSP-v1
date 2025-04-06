@@ -61,6 +61,11 @@ if st.session_state.get("processado", False):
     st.success(f"CTO {cto_nome} localizada em ({lat}, {lon})")
 
     mapa = folium.Map(location=[lat, lon], zoom_start=17)
-    folium.Marker([lat, lon], popup=f"CTO: {cto_nome}").add_to(mapa)
+    folium.Marker(
+        location=[lat, lon],
+        popup=f"CTO: {cto_nome}",
+        icon=folium.Icon(icon="glyphicon glyphicon-screenshot", color="blue")
+    ).add_to(mapa)
+
 
     st_folium(mapa, width=700, height=500)
