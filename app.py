@@ -93,7 +93,7 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     """)
 
 
-    
+ 
 
 
     # Criar o mapa com múltiplas camadas
@@ -142,3 +142,9 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     LayerControl(collapsed=False).add_to(mapa)
     st_folium(mapa, width=900, height=600)
 
+
+    lat = -23.55052
+    lon = -46.633308
+    st.markdown(f"""
+    [🗺️ Abrir rota no Google Maps nativamente](allspark://abrir_rota?lat={lat}&lon={lon})
+    """)
