@@ -88,8 +88,9 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     - **TIPO_CTO:** `{cto_info.iloc[0]['TIPO_CTO']}`
     - **SP:** `{cto_info.iloc[0]['SP']}`
     - **SS:** `{cto_info.iloc[0]['SS']}`  
-    st.markdown(f"[🗺️ Abrir no Google Maps](https://www.google.com/maps/dir/?api=1&destination={lat},{lon})")
-    
+    st.markdown(f"""
+- **🗺️ Traçar rota no Google Maps:** <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_self">Abrir no Google Maps</a>
+""", unsafe_allow_html=True)
     - **Distância OTDR informada:** `{distancia_otdr if distancia_otdr.isdigit() else 'N/A'} m`
     """)
 
