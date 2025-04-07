@@ -87,7 +87,7 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     - **ENDERECO:** `{cto_info.iloc[0]['ENDERECO']}`
     - **TIPO_CTO:** `{cto_info.iloc[0]['TIPO_CTO']}`
     - **SP:** `{cto_info.iloc[0]['SP']}`
-    - **SS:** `{cto_info.iloc[0]['SS']}`
+    - **SS:** `{cto_info.iloc[0]['SS']}`  
     st.markdown(f"[🗺️ Abrir no Google Maps](https://www.google.com/maps/dir/?api=1&destination={lat},{lon})")
     
     - **Distância OTDR informada:** `{distancia_otdr if distancia_otdr.isdigit() else 'N/A'} m`
