@@ -87,10 +87,10 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     - **ENDERECO:** `{cto_info.iloc[0]['ENDERECO']}`
     - **TIPO_CTO:** `{cto_info.iloc[0]['TIPO_CTO']}`
     - **SP:** `{cto_info.iloc[0]['SP']}`
-    - **SS:** `{cto_info.iloc[0]['SS']}`  
-    st.markdown(f"""
-- Traçar rota no Google Maps: <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_self" rel="noopener noreferrer">Abrir no Google Maps</a>
-""", unsafe_allow_html=True)
+    - **SS:** `{cto_info.iloc[0]['SS']}`
+    
+    - **Distância OTDR informada:** `{distancia_otdr if distancia_otdr.isdigit() else 'N/A'} m`
+    """)
 
 
     
@@ -118,12 +118,19 @@ if st.session_state.processado and st.session_state.cto_info is not None:
         control=True
     ).add_to(mapa)
 
-    # Adiciona marcador da CTO
+    popup_html = f"""
+    <b>CTO:</b> {cto_nome}<br>
+    <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank">
+    🗺️ Traçar rota até a CTO no Google Maps
+    </a>
+    """
+
     folium.Marker(
         location=[lat, lon],
-        popup=f"CTO: {cto_nome}",
+        popup=folium.Popup(popup_html, max_width=300),
         icon=folium.Icon(icon="glyphicon glyphicon-screenshot", color="blue")
     ).add_to(mapa)
+
 
     # Plugin Draw (ferramenta para desenhar)
     Draw(export=True, filename='meu_desenho.geojson').add_to(mapa)
