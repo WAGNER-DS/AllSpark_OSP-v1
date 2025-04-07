@@ -44,6 +44,35 @@ distancia_otdr = st.text_input("📏 Distância Medida OTDR (m)", placeholder="D
 if distancia_otdr and not distancia_otdr.isdigit():
     st.warning("Por favor, digite apenas números inteiros.")
 
+# UID da CTO selecionada
+uid_cto = df_cto.iloc[0]["UID_EQUIP"]
+
+# Caminhos dos arquivos de cabo
+caminho_primarios = os.path.join("bases", "INVENTORY", "CABOS", municipio_folder, "cabos_primarios_group.csv")
+caminho_secundarios = os.path.join("bases", "INVENTORY", "CABOS",  municipio_folder,"cabos_secundarios_group.csv")
+
+# Inicializa variáveis de distância
+distancia_primario = 0
+distancia_secundario = 0
+
+# Lista de UID de CEOS conectados à CTO
+uid_ceos = []
+
+# Carrega e filtra cabos secundários (CEOS → CTO)
+if os.path.exists(caminho_secundarios):
+    df_sec = pd.read_csv(caminho_secundarios, sep='|')
+    sec_filtrado = df_sec[df_sec["UID_EQUIPAMENTO_Z"] == uid_cto]
+    distancia_secundario = sec_filtrado["COMPRIMENTO_GEOMETRICO"].sum()
+    uid_ceos = sec_filtrado["UID_EQUIPAMENTO_A"].unique().tolist()
+
+# Carrega e filtra cabos primários (OLT → CEOS)
+if os.path.exists(caminho_primarios) and uid_ceos:
+    df_prim = pd.read_csv(caminho_primarios, sep='|')
+    prim_filtrado = df_prim[df_prim["UID_EQUIPAMENTO_Z"].isin(uid_ceos)]
+    distancia_primario = prim_filtrado["COMPRIMENTO_GEOMETRICO"].sum()
+
+
+
 # Inicializar variáveis de sessão
 if "processado" not in st.session_state:
     st.session_state.processado = False
@@ -90,10 +119,37 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     - **SS:** `{cto_info.iloc[0]['SS']}`
     
     - **Distância OTDR informada:** `{distancia_otdr if distancia_otdr.isdigit() else 'N/A'} m`
+    - **Distância CEOS → CTO (secundário):** `{distancia_secundario:.2f} m`
+    - **Distância OLT → CEOS (primário):** `{distancia_primario:.2f} m`
     """)
 
 
- 
+    # Total
+    distancia_total = distancia_primario + distancia_secundario
+
+    # HTML dinâmico com estilização
+    html_diagrama = f"""
+    <div style="text-align: center; font-family: Arial, sans-serif; margin-top: 30px;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: bold;">
+            <div style="background-color: #1f4e79; color: white; padding: 10px 20px; border-radius: 5px;">OLT</div>
+            <div style="flex-grow:1; border-top: 5px solid red; position: relative;">
+                <span style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%); color: red;">{distancia_primario:.0f} m</span>
+            </div>
+            <div style="border: 2px solid black; padding: 10px 15px; border-radius: 3px;">SPL<br>1º Nível</div>
+            <div style="flex-grow:1; border-top: 5px solid #003f5c; position: relative;">
+                <span style="position: absolute; top: -25px; left: 50%; transform: translateX(-50%); color: #003f5c;">{distancia_secundario:.0f} m</span>
+            </div>
+            <div style="background-color: green; color: white; padding: 10px 20px; border-radius: 50%;">CTO</div>
+        </div>
+        <div style="margin-top: 20px; font-weight: bold;">
+            📏 Distância Total (OLT → CTO): {distancia_total:.0f} m
+        </div>
+    </div>
+    """
+
+    # Exibe no Streamlit
+    st.markdown(html_diagrama, unsafe_allow_html=True)
+
 
 
     # Criar o mapa com múltiplas camadas
@@ -141,10 +197,17 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     # Controle de camadas
     LayerControl(collapsed=False).add_to(mapa)
     st_folium(mapa, width=900, height=600)
+    # Mostrar resultado dos filtros no app
+    st.subheader("📋 Cabos Secundários (CEOS → CTO)")
+    if not sec_filtrado.empty:
+        st.dataframe(sec_filtrado)
+    else:
+        st.info("Nenhum cabo secundário encontrado para essa CTO.")
+
+    st.subheader("📋 Cabos Primários (OLT → CEOS)")
+    if not prim_filtrado.empty:
+        st.dataframe(prim_filtrado)
+    else:
+        st.info("Nenhum cabo primário correspondente aos CEOS foi encontrado.")
 
 
-    lat = -23.55052
-    lon = -46.633308
-    st.markdown(f"""
-    [🗺️ Abrir rota no Google Maps nativamente](allspark://abrir_rota?lat={lat}&lon={lon})
-    """)
