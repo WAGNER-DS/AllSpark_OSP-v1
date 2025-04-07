@@ -9,8 +9,10 @@ from folium import LayerControl
 
 
 st.set_page_config(page_title="AllSpark OSP", layout="wide")
-st.image("allspark2.png", use_column_width=True)
+from PIL import Image
 
+img = Image.open("allspark2.png")
+st.image(img, width=1600)  # ou outro valor que fique bom pra você
 
 # Carregar lista de cidades
 caminho_cidades = os.path.join("bases", "cidades.csv")
@@ -86,7 +88,10 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     - **TIPO_CTO:** `{cto_info.iloc[0]['TIPO_CTO']}`
     - **SP:** `{cto_info.iloc[0]['SP']}`
     - **SS:** `{cto_info.iloc[0]['SS']}`
-    - **🗺️ Traçar rota para CTO no Google Maps:** [Abrir no Google Maps](https://www.google.com/maps/dir/?api=1&destination={lat},{lon})
+    st.markdown(f"""
+    - **🗺️ Traçar rota no Google Maps:** <a href="https://www.google.com/maps/dir/?api=1&destination={lat},{lon}" target="_blank">Abrir no Google Maps</a>
+    """, unsafe_allow_html=True)
+    
     - **Distância OTDR informada:** `{distancia_otdr if distancia_otdr.isdigit() else 'N/A'} m`
     """)
 
