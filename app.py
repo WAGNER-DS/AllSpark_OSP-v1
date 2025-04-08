@@ -124,16 +124,16 @@ if st.session_state.processado and st.session_state.cto_info is not None:
         <div style="display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: bold; margin-bottom: 10px;">
             <div style="background-color: #1f4e79; color: white; padding: 10px 20px; border-radius: 5px;">OLT</div>
 
-            <div style="flex-grow:1; height: 5px; background-color: red; position: relative;">
-                <span style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: red;">
+            <div style="flex-grow:1; height: 5px; background-color: purple; position: relative;">
+                <span style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: purple;">
                     {f"{distancia_primario:,.0f}".replace(",", ".")} m
                 </span>
             </div>
 
             <div style="border: 2px solid black; padding: 10px 15px; border-radius: 3px;">SPL<br>1º Nível</div>
 
-            <div style="flex-grow:1; height: 5px; background-color: #003f5c; position: relative;">
-                <span style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: #003f5c;">
+            <div style="flex-grow:1; height: 5px; background-color: blue; position: relative;">
+                <span style="position: absolute; top: -20px; left: 50%; transform: translateX(-50%); color: blue;">
                     {f"{distancia_secundario:,.0f}".replace(",", ".")} m
                 </span>
             </div>
