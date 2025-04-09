@@ -243,6 +243,15 @@ if st.session_state.processado and st.session_state.cto_info is not None:
         df_sec = df_tracados[df_tracados["IDENTIFICADOR_UNICO_CABO"].isin(ids_sec)].copy()
         df_sec["origem"] = "sec"
 
+        # 🧠 Merge para trazer o SEQUENCIAMENTO_DO_ENCAMINHAMENTO de sec_filtrado
+        df_sec = df_sec.merge(
+            sec_filtrado[["IDENTIFICADOR_UNICO_CABO_CONECTADO", "SEQUENCIAMENTO_DO_ENCAMINHAMENTO"]],
+            left_on="IDENTIFICADOR_UNICO_CABO",
+            right_on="IDENTIFICADOR_UNICO_CABO_CONECTADO",
+            how="left"
+        )
+
+
         ids_prim = prim_filtrado["IDENTIFICADOR_UNICO_CABO_CONECTADO"].dropna().unique().tolist()
         df_prim = df_tracados[df_tracados["IDENTIFICADOR_UNICO_CABO"].isin(ids_prim)].copy()
         df_prim["origem"] = "prim"
@@ -292,112 +301,151 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     camada_prim.add_to(mapa)
     camada_sec.add_to(mapa)
 
-######################################################################################
-###  BLOCO DE DESENHO UNICO DO CABO secudario ##################################################
-######################################################################################
 
-# Função para ordenar blocos de segmentos encadeados com inversão automática
-# Mesma função de ordenação
+    ######################################################################################
+    ###  BLOCO DE DESENHO UNICO DO CABO SECUNDÁRIO COM NORMALIZAÇÃO DE TRAÇADO ###########
+    ######################################################################################
+
     from collections import defaultdict
+    # Garantir tipo numérico para o sequenciamento
+    df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] = pd.to_numeric(df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"], errors="coerce")
 
-    # Mapear o sequenciamento para cada cabo conectado
-    mapa_sequenciamento = sec_filtrado.set_index('IDENTIFICADOR_UNICO_CABO_CONECTADO')['SEQUENCIAMENTO_DO_ENCAMINHAMENTO'].to_dict()
+    # Verificar necessidade de inversão do sequenciamento
+    sequenciamento_inicial = df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"].min()
+    bloco_inicial = df_sec[df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == sequenciamento_inicial]
+    uuids_finais = bloco_inicial["UUID_DO_EQUIPAMENTO_FINAL"].dropna().unique()
+    df_sec_2=df_sec
+    if any(uuid == uid_cto for uuid in uuids_finais):
+        
+        sequencias_atuais = sorted(df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"].dropna().unique(), reverse=True)
+        novo_mapeamento = {old: new for new, old in enumerate(sequencias_atuais, start=1)}
+        df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] = df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"].map(novo_mapeamento)
+        
+        st.info("🔁 Sequenciamento invertido pois o UID da CTO não está no final do primeiro bloco.")
+    else:
+        st.success("✔️ Sequenciamento já está correto.")
+    df_sec["LATITUDE_INICIAL"] = df_sec["LATITUDE_INICIAL"].apply(lambda x: str(x) if isinstance(x, list) else x)
+    df_sec["LONGITUDE_INICIAL"] = df_sec["LONGITUDE_INICIAL"].apply(lambda x: str(x) if isinstance(x, list) else x)
+    df_sec["LATITUDE_FINAL"] = df_sec["LATITUDE_FINAL"].apply(lambda x: str(x) if isinstance(x, list) else x)
+    df_sec["LONGITUDE_FINAL"] = df_sec["LONGITUDE_FINAL"].apply(lambda x: str(x) if isinstance(x, list) else x)
 
-    # Construir dicionário com chave = sequenciamento, valor = lista de segmentos [[p1],[p2]]
-    dict_segmentos = defaultdict(list)
+    
+    
+    # Extrair ponto inicial da CTO
+    #linha_inicial_cto = df_sec[df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == sequenciamento_inicial].iloc[0]
+    sequenciamento_final = df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"].max()
+    linha_final_cto = df_sec[df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == sequenciamento_final].iloc[-1]
 
-    for _, row in df_sec.iterrows():
-        cabo_id = row['IDENTIFICADOR_UNICO_CABO']
-        seq = mapa_sequenciamento.get(cabo_id, None)
-        if seq is None:
-            continue  # Ignora se não encontrar sequenciamento
+    lat_eq_final_cto = float(str(linha_final_cto["LATITUDE_EQUP_FINAL"]).replace(",", "."))
+    lon_eq_final_cto = float(str(linha_final_cto["LONGITUDE_EQUP_FINAL"]).replace(",", "."))
+    ponto_cto = (lat_eq_final_cto, lon_eq_final_cto)
+    # Visualização no Streamlit
+        
+    df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] = pd.to_numeric(df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"], errors='coerce')
 
-        lat1 = float(str(row['LATITUDE_INICIAL']).replace(',', '.'))
-        lon1 = float(str(row['LONGITUDE_INICIAL']).replace(',', '.'))
-        lat2 = float(str(row['LATITUDE_FINAL']).replace(',', '.'))
-        lon2 = float(str(row['LONGITUDE_FINAL']).replace(',', '.'))
+    # Encontrar o maior sequenciamento
+    ultimo_seq = df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"].max()
 
-        dict_segmentos[int(seq)].append([[lat1, lon1], [lat2, lon2]])
+    # Filtrar o último bloco
+    ultimo_bloco = df_sec[df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == ultimo_seq]
 
-    def ordenar_blocos_encadeados(dict_segmentos, ponto_inicial):
-        caminho_total = [ponto_inicial]
-        for sequencia in sorted(dict_segmentos.keys(), reverse=True):
-            segmentos = dict_segmentos[sequencia].copy()
-            caminho = []
+    # Pegar a primeira linha do último sequenciamento e extrair as coordenadas do equipamento inicial
+    lat_eq_inicial = float(str(ultimo_bloco.iloc[0]["LATITUDE_EQUP_INICIAL"]).replace(',', '.'))
+    lon_eq_inicial = float(str(ultimo_bloco.iloc[0]["LONGITUDE_EQUP_INICIAL"]).replace(',', '.'))
 
-            while segmentos:
-                encontrou = False
-                for i, seg in enumerate(segmentos):
-                    p1 = tuple(seg[0])
-                    p2 = tuple(seg[1])
-                    if not caminho:
-                        if caminho_total[-1] == p1:
-                            caminho.append(p1)
-                            caminho.append(p2)
-                            segmentos.pop(i)
-                            encontrou = True
-                            break
-                        elif caminho_total[-1] == p2:
-                            caminho.append(p2)
-                            caminho.append(p1)
-                            segmentos.pop(i)
-                            encontrou = True
-                            break
-                    else:
-                        if caminho[-1] == p1:
-                            caminho.append(p2)
-                            segmentos.pop(i)
-                            encontrou = True
-                            break
-                        elif caminho[-1] == p2:
-                            caminho.append(p1)
-                            segmentos.pop(i)
-                            encontrou = True
-                            break
-                        elif caminho[0] == p1:
-                            caminho.insert(0, p2)
-                            segmentos.pop(i)
-                            encontrou = True
-                            break
-                        elif caminho[0] == p2:
-                            caminho.insert(0, p1)
-                            segmentos.pop(i)
-                            encontrou = True
-                            break
+    # Definir o ponto inicial
+    ponto_inicial_sec = (lat_eq_inicial, lon_eq_inicial)
 
-                if not encontrou:
-                    break  # 🔒 Para evitar loop infinito se não conseguir conectar
+    # Garantir que a coluna está numérica
+    df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] = pd.to_numeric(df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"], errors='coerce')
 
-            # 🔒 Adiciona apenas se conseguiu construir um caminho
-            if caminho:
-                if caminho_total[-1] == caminho[0]:
-                    caminho_total += caminho[1:]
-                else:
-                    caminho_total += caminho
-            else:
-                print(f"Aviso: Bloco {sequencia} não foi conectado ao caminho total.")
+    # 1️⃣ Menor sequenciamento (início da rota)
+    sequenciamento_inicial = df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"].min()
 
-        return caminho_total
-    # Encontrar o maior sequenciamento (último bloco do caminho)
-    maior_seq = max(dict_segmentos.keys())
+    # 2️⃣ Filtra a linha do menor sequenciamento
+    linha_inicial_cto = df_sec[df_sec["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == sequenciamento_inicial].iloc[0]
 
-    # Pegar o último segmento dentro do maior sequenciamento
-    segmento_final = dict_segmentos[maior_seq][-1]  # último segmento do maior bloco
+    # 3️⃣ Define ponto_inicial usando EQUP_FINAL
+    lat_eq_final_cto = float(str(linha_inicial_cto["LATITUDE_EQUP_FINAL"]).replace(",", "."))
+    lon_eq_final_cto = float(str(linha_inicial_cto["LONGITUDE_EQUP_FINAL"]).replace(",", "."))
 
-    # Usar o ponto inicial do segmento como ponto de partida
-    ponto_inicial = tuple(segmento_final[0])
+    # ✅ Setar ponto inicial corretamente
+    #ponto_cto = (lat_eq_final_cto, lon_eq_final_cto)
 
-    # Verificar o ponto inicial escolhido
-    #with st.expander("📍 Ponto inicial utilizado para ordenar"):
-    #    st.write(ponto_inicial)
+ 
+    def normalizar_sequencia_secundario(df, ponto_cto):
+        df = df.copy()
+
+        # Arredondamento e criação dos pontos invertidos
+        df["PONTO INICIAL INVERTIDO"] = df[["LATITUDE_FINAL", "LONGITUDE_FINAL"]].apply(lambda x: [round(x[0], 7), round(x[1], 7)], axis=1)
+        df["PONTO FINAL INVERTIDO"] = df[["LATITUDE_INICIAL", "LONGITUDE_INICIAL"]].apply(lambda x: [round(x[0], 7), round(x[1], 7)], axis=1)
+
+        # Inicializa as colunas
+        df["PONTO INICIAL_NORMALIZADO"] = None
+        df["PONTO FINAL_NORMALIZADO"] = None
+        df["SETAGEM DA ORDEM"] = None
+        df["AÇÃO"] = None
+
+        # Ordena os blocos de sequência em ordem decrescente
+        sequencias = sorted(df["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"].dropna().unique(), reverse=True)
+
+        ordem = 1
+        ponto_atual = [round(ponto_cto[0], 7), round(ponto_cto[1], 7)]
+
+        for seq in sequencias:
+            df_seq = df[(df["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == seq) & (df["SETAGEM DA ORDEM"].isna())]
+
+            while True:
+                # Verifica se ponto_atual está em PONTO INICIAL INVERTIDO
+                match_idx = df_seq[df_seq["PONTO INICIAL INVERTIDO"].apply(lambda x: x == ponto_atual)].index
+                if not match_idx.empty:
+                    idx = match_idx[0]
+                    df.at[idx, "PONTO INICIAL_NORMALIZADO"] = df.at[idx, "PONTO INICIAL INVERTIDO"]
+                    df.at[idx, "PONTO FINAL_NORMALIZADO"] = df.at[idx, "PONTO FINAL INVERTIDO"]
+                    df.at[idx, "SETAGEM DA ORDEM"] = ordem
+                    df.at[idx, "AÇÃO"] = ""
+                    ponto_atual = df.at[idx, "PONTO FINAL INVERTIDO"]
+                    ordem += 1
+                    df_seq = df[(df["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == seq) & (df["SETAGEM DA ORDEM"].isna())]
+                    continue
+
+                # Verifica se ponto_atual está em PONTO FINAL INVERTIDO (necessita inverter)
+                match_idx = df_seq[df_seq["PONTO FINAL INVERTIDO"].apply(lambda x: x == ponto_atual)].index
+                if not match_idx.empty:
+                    idx = match_idx[0]
+                    df.at[idx, "PONTO INICIAL_NORMALIZADO"] = df.at[idx, "PONTO FINAL INVERTIDO"]
+                    df.at[idx, "PONTO FINAL_NORMALIZADO"] = df.at[idx, "PONTO INICIAL INVERTIDO"]
+                    df.at[idx, "SETAGEM DA ORDEM"] = ordem
+                    df.at[idx, "AÇÃO"] = "INVERTEU"
+                    ponto_atual = df.at[idx, "PONTO INICIAL INVERTIDO"]
+                    ordem += 1
+                    df_seq = df[(df["SEQUENCIAMENTO_DO_ENCAMINHAMENTO"] == seq) & (df["SETAGEM DA ORDEM"].isna())]
+                    continue
+
+                # Nenhum match encontrado, sai do while e vai para próxima sequência
+                break
+
+        # Ordena e retorna o DataFrame final
+        return df.sort_values(by="SETAGEM DA ORDEM").reset_index(drop=True)
 
 
-    # Gerar linha ordenada
-    linha_secundaria_ordenada = ordenar_blocos_encadeados(dict_segmentos, ponto_inicial)
 
-    # Adicionar camada ao mapa
+
+    # Aplicar função e extrair linha ordenada
+    df_sec_normalizado = normalizar_sequencia_secundario(df_sec, ponto_cto)
+    linha_secundaria_ordenada = df_sec_normalizado[df_sec_normalizado["SETAGEM DA ORDEM"].notna()].sort_values("SETAGEM DA ORDEM")
+    pontos_ordenados = [p for p in linha_secundaria_ordenada["PONTO INICIAL_NORMALIZADO"]] +                    [linha_secundaria_ordenada.iloc[-1]["PONTO FINAL_NORMALIZADO"]]
+    linha_secundaria_ordenada = [(lat, lon) for lat, lon in pontos_ordenados]
+    
+    # Visualização no Streamlit
+    #with st.expander("📍 Caminho Secundario (OLT → CEOS)"):
+    #    st.write(f"Início: {linha_secundaria_ordenada[0]}")
+    #    st.write(f"Fim: {linha_secundaria_ordenada[-1]}")
+    #    st.write(f"Ponto CTO: {ponto_cto}")
+    #    st.code(linha_secundaria_ordenada)
+
+    # Adicionar ao mapa Folium
     camada_ordenada = folium.FeatureGroup(name="Caminho Secundário (CEOS → CTO)", show=False)
-
     folium.PolyLine(
         locations=linha_secundaria_ordenada,
         color="yellow",
@@ -405,9 +453,7 @@ if st.session_state.processado and st.session_state.cto_info is not None:
         opacity=1,
         tooltip="Caminho ordenado CEOS → CTO"
     ).add_to(camada_ordenada)
-
     camada_ordenada.add_to(mapa)
-
 
 ######################################################################################
 ######################################################################################
@@ -508,7 +554,11 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     menor_seq = min(dict_segmentos_prim.keys())
     primeiro_segmento = dict_segmentos_prim[menor_seq][0]
     ponto_inicial_prim = tuple(primeiro_segmento[0])  # 🟢 ponto de partida correto
-
+    #with st.expander("🔍 Segmentos Brutos por Sequenciamento Primario"):
+    #    for seq in sorted(dict_segmentos_prim.keys(), reverse=True):
+    #        st.markdown(f"**Sequenciamento {seq}**")
+    #        for seg in dict_segmentos_prim[seq]:
+    #            st.code(seg)
     # 📏 Gerar caminho encadeado na ordem crescente (OLT → CEOS)
     caminho_primario = ordenar_blocos_encadeados_crescente(dict_segmentos_prim, ponto_inicial_prim)
 
@@ -527,14 +577,15 @@ if st.session_state.processado and st.session_state.cto_info is not None:
 
     # (opcional) debug visual no Streamlit
     #with st.expander("📍 Caminho Primário (OLT → CEOS)"):
-    ##    st.write(f"Início: {caminho_primario[0]}")
+    #    st.write(f"Início: {caminho_primario[0]}")
     #    st.write(f"Fim: {caminho_primario[-1]}")
     #    st.code(caminho_primario)
 
 
     # Inverter caminho primário (para garantir sentido OLT → CEOS)
     #caminho_primario = caminho_primario[::-1]
-
+    if ponto_inicial_sec!=linha_secundaria_ordenada[0]:
+        linha_secundaria_ordenada = linha_secundaria_ordenada[::-1]
     
     # Concatenar os dois caminhos
     if caminho_primario[-1] == linha_secundaria_ordenada[0]:
@@ -647,6 +698,10 @@ if st.session_state.processado and st.session_state.cto_info is not None:
         st.warning(f"Erro ao gerar o mapa para download: {e}")
 
     # Agora sim, exibe o mapa interativo
+    # ============================
+    # 🔍 Camada: Segmentos Secundários (Brutos)
+    # ============================
+    
     st_folium(mapa, use_container_width=True, height=600)
 
 
@@ -675,11 +730,7 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     # ============================
     # 🔍 Camada: Segmentos Secundários (Brutos)
     # ============================
-    #with st.expander("🔍 Segmentos Brutos por Sequenciamento"):
-    #    for seq in sorted(dict_segmentos.keys(), reverse=True):
-    #        st.markdown(f"**Sequenciamento {seq}**")
-    #        for seg in dict_segmentos[seq]:
-    #            st.code(seg)
+    
     # ============================
     # 🔍 Camada: Segmentos Pri (Brutos)
     # ============================
