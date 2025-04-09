@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 from geopy.distance import geodesic
+import io
 
 
 # Configurações iniciais
@@ -628,9 +629,39 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     Fullscreen(position="topright").add_to(mapa)
     LayerControl(collapsed=False).add_to(mapa)
 
+    # Geração do HTML e botão de download (antes do mapa ser exibido)
+    
+    
+    try:
+        mapa_html_str = mapa.get_root().render()
+        mapa_bytes = mapa_html_str.encode("utf-8")
+        buffer = io.BytesIO(mapa_bytes)
+
+        st.download_button(
+            label="📥 Baixar Mapa como HTML",
+            data=buffer,
+            file_name=f"mapa_OTDR_{cto_nome}.html",
+            mime="text/html"
+        )
+    except Exception as e:
+        st.warning(f"Erro ao gerar o mapa para download: {e}")
+
+    # Agora sim, exibe o mapa interativo
     st_folium(mapa, use_container_width=True, height=600)
 
-    st.subheader("🧭 Coordenadas dos caminhos (debug)")
+
+# Ative se quiser ver os segmentos brutos por sequenciamento
+# with st.expander("🔍 Segmentos Brutos - Secundário"):
+#     for seq in sorted(dict_segmentos.keys(), reverse=True):
+#         st.markdown(f"**Sequenciamento {seq}**")
+#         for seg in dict_segmentos[seq]:
+#             st.code(seg)
+
+# with st.expander("🔍 Segmentos Brutos - Primário"):
+#     for seq in sorted(dict_segmentos_prim.keys()):
+#         st.markdown(f"**Sequenciamento {seq}**")
+#         for seg in dict_segmentos_prim[seq]:
+#             st.code(seg)
 
     #with st.expander("📍 Caminho Primário (OLT → CEOS)"):
     #    st.write(f"Início: {caminho_primario[0]}")
@@ -657,5 +688,7 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     #        st.markdown(f"**Sequenciamento {seq}**")
     #        for seg in dict_segmentos[seq]:
     #            st.code(seg)
+    
+
 
 
