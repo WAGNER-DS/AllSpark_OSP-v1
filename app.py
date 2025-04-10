@@ -15,7 +15,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 from geopy.distance import geodesic
 import io
-
+from folium.plugins import LocateControl
 
 # Configurações iniciais
 st.set_page_config(page_title="AllSpark OSP", layout="wide")
@@ -679,6 +679,8 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     Draw(export=True, filename='meu_desenho.geojson').add_to(mapa)
     Fullscreen(position="topright").add_to(mapa)
     LayerControl(collapsed=False).add_to(mapa)
+    # Depois de criar o mapa
+    LocateControl(auto_start=True).add_to(mapa)
 
     # Geração do HTML e botão de download (antes do mapa ser exibido)
     
