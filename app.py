@@ -680,7 +680,7 @@ if st.session_state.processado and st.session_state.cto_info is not None:
     Fullscreen(position="topright").add_to(mapa)
     LayerControl(collapsed=False).add_to(mapa)
     # Depois de criar o mapa
-    LocateControl(auto_start=True).add_to(mapa)
+    LocateControl(auto_start=False).add_to(mapa)
 
     # Geração do HTML e botão de download (antes do mapa ser exibido)
     
